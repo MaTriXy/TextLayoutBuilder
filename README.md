@@ -1,22 +1,20 @@
-TextLayoutBuilder
-=================
+<img src="/docs/logo.png" width="128" align="right"/>
+
+# TextLayoutBuilder
+
 Build text [Layout](https://developer.android.com/reference/android/text/Layout.html)s easily on Android.
 
-![TextLayoutBuilder logo](./docs/logo.png)
-
-Features
---------
+## Features
 - Create text `Layout`s easily.
 - Reuse builders to create similarly styled `Layout`s.
 - Cache `Layout`s of commonly used strings.
 - Improve performance by warming up the FreeType cache.
 
-Download
---------
+## Download
 If using Gradle, add this to your `build.gradle`:
 
 ```groovy
-compile 'com.facebook.fbui.textlayoutbuilder:textlayoutbuilder:1.0.0'
+compile 'com.facebook.fbui.textlayoutbuilder:textlayoutbuilder:1.2.0'
 ```
 
 or, if using Maven:
@@ -25,13 +23,12 @@ or, if using Maven:
 <dependency>
   <groupId>com.facebook.fbui.textlayoutbuilder</groupId>
   <artifactId>textlayoutbuilder</artifactId>
-  <version>1.0.0</version>
+  <version>1.2.0</version>
   <type>aar</type>
 </dependency>
 ```
 
-Usage
------
+## Usage
 1. Set the properties on the `TextLayoutBuilder`:
   ```java
   TextLayoutBuilder builder = new TextLayoutBuilder()
@@ -60,7 +57,7 @@ Usage
 
       @Override
       protected void onDraw(Canvas canvas) {
-          super.draw(canvas);
+          super.onDraw(canvas);
 
           // Draw the layout.
           mLayout.draw(canvas);
@@ -68,8 +65,7 @@ Usage
   }
   ```
 
-Additional Usage
-----------------
+## Additional Usage
 1. Cache the layouts for commonly used strings by turning on caching in the `TextLayoutBuilder`.
   ```java
   mTextLayoutBuilder.setShouldCacheLayout(true);
@@ -90,3 +86,8 @@ Turn this on and pass in a `GlyphWarmer` for the `TextLayoutBuilder`.
       mContext,           // Activity context
       resId);             // style resource id
   ```
+
+## License
+
+TextLayoutBuilder is BSD-licensed. We also provide an
+additional patent grant.

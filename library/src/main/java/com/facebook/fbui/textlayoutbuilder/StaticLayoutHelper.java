@@ -1,27 +1,22 @@
 /**
- * Copyright (c) 2016-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2016-present, Facebook, Inc. All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * <p>This source code is licensed under the BSD-style license found in the LICENSE file in the root
+ * directory of this source tree. An additional grant of patent rights can be found in the PATENTS
+ * file in the same directory.
  */
-
 package com.facebook.fbui.textlayoutbuilder;
 
-import java.lang.reflect.Field;
-
+import android.os.Build;
 import android.support.v4.text.TextDirectionHeuristicCompat;
 import android.text.Layout;
 import android.text.StaticLayout;
 import android.text.TextPaint;
 import android.text.TextUtils;
-
 import com.facebook.fbui.textlayoutbuilder.proxy.StaticLayoutProxy;
+import java.lang.reflect.Field;
 
-/**
- * Helper class to get around the {@link StaticLayout} constructor limitation in ICS.
- */
+/** Helper class to get around the {@link StaticLayout} constructor limitation in ICS. */
 /* package */ class StaticLayoutHelper {
 
   // Space and ellipsis to append at the end of a string to ellipsize it
@@ -151,6 +146,10 @@ import com.facebook.fbui.textlayoutbuilder.proxy.StaticLayoutProxy;
    * @param ellipsisWidth The width of the ellipsis
    * @param maxLines The maximum number of lines for this layout
    * @param textDirection The text direction
+   * @param breakStrategy The break strategy
+   * @param hyphenationFrequency The hyphenation frequency
+   * @param leftIndents The array of left indent margins in pixels
+   * @param rightIndents The array of left indent margins in pixels
    * @return A {@link StaticLayout}
    */
   public static StaticLayout make(
@@ -166,22 +165,43 @@ import com.facebook.fbui.textlayoutbuilder.proxy.StaticLayoutProxy;
       TextUtils.TruncateAt ellipsize,
       int ellipsisWidth,
       int maxLines,
-      TextDirectionHeuristicCompat textDirection) {
+      TextDirectionHeuristicCompat textDirection,
+      int breakStrategy,
+      int hyphenationFrequency,
+      int[] leftIndents,
+      int[] rightIndents) {
 
-    StaticLayout layout = getStaticLayoutMaybeMaxLines(
-        text,
-        start,
-        end,
-        paint,
-        width,
-        alignment,
-        spacingMult,
-        spacingAdd,
-        includePadding,
-        ellipsize,
-        ellipsisWidth,
-        maxLines,
-        textDirection);
+    // Use the new Builder on 23+.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+      return StaticLayout.Builder.obtain(text, start, end, paint, width)
+          .setAlignment(alignment)
+          .setLineSpacing(spacingAdd, spacingMult)
+          .setIncludePad(includePadding)
+          .setEllipsize(ellipsize)
+          .setEllipsizedWidth(ellipsisWidth)
+          .setMaxLines(maxLines)
+          .setTextDirection(StaticLayoutProxy.fromTextDirectionHeuristicCompat(textDirection))
+          .setBreakStrategy(breakStrategy)
+          .setHyphenationFrequency(hyphenationFrequency)
+          .setIndents(leftIndents, rightIndents)
+          .build();
+    }
+
+    StaticLayout layout =
+        getStaticLayoutMaybeMaxLines(
+            text,
+            start,
+            end,
+            paint,
+            width,
+            alignment,
+            spacingMult,
+            spacingAdd,
+            includePadding,
+            ellipsize,
+            ellipsisWidth,
+            maxLines,
+            textDirection);
 
     // Returned layout may not have correct line count (either because it is not supported
     // pre-ICS, or because there is a bug in Android pre-Lollipop that causes the text to span
@@ -207,38 +227,39 @@ import com.facebook.fbui.textlayoutbuilder.proxy.StaticLayoutProxy;
 
         end = newEnd;
 
-        layout = getStaticLayoutMaybeMaxLines(
-            text,
-            start,
-            end,
-            paint,
-            width,
-            alignment,
-            spacingMult,
-            spacingAdd,
-            includePadding,
-            ellipsize,
-            ellipsisWidth,
-            maxLines,
-            textDirection);
+        layout =
+            getStaticLayoutMaybeMaxLines(
+                text,
+                start,
+                end,
+                paint,
+                width,
+                alignment,
+                spacingMult,
+                spacingAdd,
+                includePadding,
+                ellipsize,
+                ellipsisWidth,
+                maxLines,
+                textDirection);
 
-        if (layout.getLineCount() >= maxLines &&
-            layout.getEllipsisCount(maxLines - 1) == 0) {
+        if (layout.getLineCount() >= maxLines && layout.getEllipsisCount(maxLines - 1) == 0) {
           CharSequence ellipsizedText = text.subSequence(start, end) + SPACE_AND_ELLIPSIS;
-          layout = getStaticLayoutMaybeMaxLines(
-              ellipsizedText,
-              0,
-              ellipsizedText.length(),
-              paint,
-              width,
-              alignment,
-              spacingMult,
-              spacingAdd,
-              includePadding,
-              ellipsize,
-              ellipsisWidth,
-              maxLines,
-              textDirection);
+          layout =
+              getStaticLayoutMaybeMaxLines(
+                  ellipsizedText,
+                  0,
+                  ellipsizedText.length(),
+                  paint,
+                  width,
+                  alignment,
+                  spacingMult,
+                  spacingAdd,
+                  includePadding,
+                  ellipsize,
+                  ellipsisWidth,
+                  maxLines,
+                  textDirection);
         }
       }
     }
@@ -251,8 +272,8 @@ import com.facebook.fbui.textlayoutbuilder.proxy.StaticLayoutProxy;
   }
 
   /**
-   * Attempts to fix a StaticLayout with wrong layout information
-   * that can result in StringIndexOutOfBoundsException during layout.draw().
+   * Attempts to fix a StaticLayout with wrong layout information that can result in
+   * StringIndexOutOfBoundsException during layout.draw().
    *
    * @param layout The {@link StaticLayout} to fix
    * @return Whether the layout was fixed or not

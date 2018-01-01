@@ -16,22 +16,22 @@ def isReleaseBuild() {
 }
 
 def getRepositoryUrl() {
-    return hasProperty('repositoryUrl') ? property('repositoryUrl') : "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+    return findProperty('repositoryUrl') ? property('repositoryUrl') : "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
 }
 
 def getRepositoryUsername() {
-    return hasProperty('repositoryUsername') ? property('repositoryUsername') : ""
+    return findProperty('repositoryUsername') ? property('repositoryUsername') : ""
 }
 
 def getRepositoryPassword() {
-    return hasProperty('repositoryPassword') ? property('repositoryPassword') : ""
+    return findProperty('repositoryPassword') ? property('repositoryPassword') : ""
 }
 
 def getPassword(String passwordName) {
     return new String(System.console().readPassword("\nProvide $passwordName:"))
 }
 
-if (hasProperty('askForPasswords')) {
+if (findProperty('askForPasswords')) {
     ext.'repositoryPassword' = getPassword('repository password');
     ext.'signing.password' = getPassword('signing password');
 }
@@ -64,18 +64,18 @@ afterEvaluate { project ->
                 artifactId POM_ARTIFACT_ID
                 packaging POM_PACKAGING
                 description POM_DESCRIPTION
-                url 'https://github.com/facebookincubator/TextLayoutBuilder'
+                url 'https://github.com/facebook/TextLayoutBuilder'
 
                 scm {
-                    url 'https://github.com/facebookincubator/TextLayoutBuilder.git'
-                    connection 'scm:git:https://github.com/facebookincubator/TextLayoutBuilder.git'
-                    developerConnection 'scm:git:git@github.com:facebookincubator/TextLayoutBuilder.git'
+                    url 'https://github.com/facebook/TextLayoutBuilder.git'
+                    connection 'scm:git:https://github.com/facebook/TextLayoutBuilder.git'
+                    developerConnection 'scm:git:git@github.com:facebook/TextLayoutBuilder.git'
                 }
 
                 licenses {
                     license {
                         name 'BSD License'
-                        url 'https://github.com/facebookincubator/TextLayoutBuilder/blob/master/LICENSE'
+                        url 'https://github.com/facebook/TextLayoutBuilder/blob/master/LICENSE'
                         distribution 'repo'
                     }
                 }

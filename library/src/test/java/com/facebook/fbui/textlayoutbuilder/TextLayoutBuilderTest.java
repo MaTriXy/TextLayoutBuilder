@@ -1,13 +1,15 @@
 /**
- * Copyright (c) 2016-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2016-present, Facebook, Inc. All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * <p>This source code is licensed under the BSD-style license found in the LICENSE file in the root
+ * directory of this source tree. An additional grant of patent rights can be found in the PATENTS
+ * file in the same directory.
  */
-
 package com.facebook.fbui.textlayoutbuilder;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 import android.content.res.ColorStateList;
 import android.graphics.Paint;
@@ -20,32 +22,27 @@ import android.text.TextUtils;
 import android.text.style.ClickableSpan;
 import android.text.style.StyleSpan;
 import android.view.View;
-
 import com.facebook.fbui.textlayoutbuilder.shadows.ShadowPicture;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-
-/**
- * Tests {@link TextLayoutBuilder}
- */
-@Config(manifest = Config.NONE, shadows = {ShadowPicture.class})
+/** Tests {@link TextLayoutBuilder} */
+@Config(
+  manifest = Config.NONE,
+  shadows = {ShadowPicture.class}
+)
 @RunWith(RobolectricTestRunner.class)
 public class TextLayoutBuilderTest {
 
   private static final String TEST = "TEST";
   private static final String LONG_TEXT =
-      "Lorem ipsum dolor sit amet test \n" +
-      "Lorem ipsum dolor sit amet test \n" +
-      "Lorem ipsum dolor sit amet test \n" +
-      "Lorem ipsum dolor sit amet test \n";
+      "Lorem ipsum dolor sit amet test \n"
+          + "Lorem ipsum dolor sit amet test \n"
+          + "Lorem ipsum dolor sit amet test \n"
+          + "Lorem ipsum dolor sit amet test \n";
 
   private TextLayoutBuilder mBuilder;
   private Layout mLayout;
@@ -56,7 +53,7 @@ public class TextLayoutBuilderTest {
     mBuilder.setText(TEST);
 
     // Clear the cache.
-    mBuilder.sCache.evictAll();
+    TextLayoutBuilder.sCache.evictAll();
   }
 
   // Test setters.
@@ -172,6 +169,32 @@ public class TextLayoutBuilderTest {
   }
 
   @Test
+  public void testSetBreakStrategy() {
+    mLayout = mBuilder.setBreakStrategy(1).build();
+    assertEquals(mBuilder.getBreakStrategy(), 1);
+  }
+
+  @Test
+  public void testSetHyphenationFrequency() {
+    mLayout = mBuilder.setHyphenationFrequency(1).build();
+    assertEquals(mBuilder.getHyphenationFrequency(), 1);
+  }
+
+  @Test
+  public void testSetLeftIndents() {
+    int[] leftIndents = new int[] {0, 1};
+    mLayout = mBuilder.setIndents(leftIndents, null).build();
+    assertEquals(mBuilder.getLeftIndents(), leftIndents);
+  }
+
+  @Test
+  public void testSetRightIndents() {
+    int[] rightIndents = new int[] {0, 1};
+    mLayout = mBuilder.setIndents(null, rightIndents).build();
+    assertEquals(mBuilder.getRightIndents(), rightIndents);
+  }
+
+  @Test
   public void testSetGlyphWarmer() {
     FakeGlyphWarmer glyphWarmer = new FakeGlyphWarmer();
     mLayout = mBuilder.setGlyphWarmer(glyphWarmer).build();
@@ -181,22 +204,48 @@ public class TextLayoutBuilderTest {
   // Test functionality.
   @Test
   public void testSingleLine() {
-    mLayout = mBuilder
-            .setText(LONG_TEXT)
-            .setSingleLine(true)
-            .setWidth(1000)
-            .build();
+    mLayout = mBuilder.setText(LONG_TEXT).setSingleLine(true).setWidth(1000).build();
     assertEquals(mLayout.getLineCount(), 1);
   }
 
   @Test
   public void testMaxLines() {
-    mLayout = mBuilder
-            .setText(LONG_TEXT)
-            .setMaxLines(2)
-            .setWidth(1000)
-            .build();
+    mLayout = mBuilder.setText(LONG_TEXT).setMaxLines(2).setWidth(1000).build();
     assertEquals(mLayout.getLineCount(), 2);
+  }
+
+  @Test
+  public void testMinEms() {
+    mBuilder.setText(LONG_TEXT).setMinEms(10).build();
+    assertEquals(mBuilder.getMinEms(), 10);
+    assertEquals(mBuilder.getMinWidth(), -1);
+  }
+
+  @Test
+  public void testMaxEms() {
+    mBuilder.setText(LONG_TEXT).setMaxEms(10).build();
+    assertEquals(mBuilder.getMaxEms(), 10);
+    assertEquals(mBuilder.getMaxWidth(), -1);
+  }
+
+  @Test
+  public void testMinWidth() {
+    mBuilder.setText(LONG_TEXT).setMinWidth(100).build();
+    assertEquals(mBuilder.getMinWidth(), 100);
+    assertEquals(mBuilder.getMinEms(), -1);
+  }
+
+  @Test
+  public void testMaxWidth() {
+    mBuilder.setText(LONG_TEXT).setMaxWidth(100).build();
+    assertEquals(mBuilder.getMaxWidth(), 100);
+    assertEquals(mBuilder.getMaxEms(), -1);
+  }
+
+  @Test
+  public void testDensity() {
+    mBuilder.setDensity(1.5f).build();
+    assertEquals(mBuilder.getDensity(), 1.5f, 0.001f);
   }
 
   @Test
@@ -222,20 +271,14 @@ public class TextLayoutBuilderTest {
   @Test
   public void testWarmText() {
     FakeGlyphWarmer warmer = new FakeGlyphWarmer();
-    mLayout = mBuilder
-        .setShouldWarmText(true)
-        .setGlyphWarmer(warmer)
-        .build();
+    mLayout = mBuilder.setShouldWarmText(true).setGlyphWarmer(warmer).build();
     assertEquals(warmer.getLayout(), mLayout);
   }
 
   @Test
   public void testDoNotWarmText() {
     FakeGlyphWarmer warmer = new FakeGlyphWarmer();
-    mLayout = mBuilder
-        .setShouldWarmText(false)
-        .setGlyphWarmer(warmer)
-        .build();
+    mLayout = mBuilder.setShouldWarmText(false).setGlyphWarmer(warmer).build();
     assertEquals(warmer.getLayout(), null);
   }
 
@@ -287,29 +330,24 @@ public class TextLayoutBuilderTest {
   public void testCachingSpannableString() {
     SpannableStringBuilder spannable = new SpannableStringBuilder("This is a bold text");
     spannable.setSpan(new StyleSpan(Typeface.BOLD), 10, 13, Spanned.SPAN_INCLUSIVE_INCLUSIVE);
-    mLayout = mBuilder
-        .setText(spannable)
-        .setShouldCacheLayout(true)
-        .build();
+    mLayout = mBuilder.setText(spannable).setShouldCacheLayout(true).build();
     assertEquals(mBuilder.sCache.size(), 1);
     assertEquals(mBuilder.sCache.get(mBuilder.mParams.hashCode()), mLayout);
   }
 
   @Test
   public void testNoCachingSpannableString() {
-    ClickableSpan clickableSpan = new ClickableSpan() {
-      @Override
-      public void onClick(View widget) {
-        // Do nothing.
-      }
-    };
+    ClickableSpan clickableSpan =
+        new ClickableSpan() {
+          @Override
+          public void onClick(View widget) {
+            // Do nothing.
+          }
+        };
 
     SpannableStringBuilder spannable = new SpannableStringBuilder("This is a bold text");
     spannable.setSpan(clickableSpan, 10, 13, Spanned.SPAN_INCLUSIVE_INCLUSIVE);
-    mLayout = mBuilder
-        .setText(spannable)
-        .setShouldCacheLayout(true)
-        .build();
+    mLayout = mBuilder.setText(spannable).setShouldCacheLayout(true).build();
     assertEquals(mBuilder.sCache.size(), 0);
     assertEquals(mBuilder.sCache.get(mBuilder.mParams.hashCode()), null);
   }
