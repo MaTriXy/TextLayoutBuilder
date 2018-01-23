@@ -16,6 +16,7 @@ import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.support.annotation.ColorInt;
 import android.support.annotation.IntDef;
+import android.support.annotation.Nullable;
 import android.support.annotation.Px;
 import android.support.annotation.VisibleForTesting;
 import android.support.v4.text.TextDirectionHeuristicCompat;
@@ -71,7 +72,11 @@ public class TextLayoutBuilder {
   /** Params for creating the layout. */
   @VisibleForTesting
   static class Params {
-    TextPaint paint = new TextLayoutPaint(Paint.ANTI_ALIAS_FLAG);
+    TextPaint paint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+    float mShadowDx;
+    float mShadowDy;
+    float mShadowRadius;
+    int mShadowColor;
     int width;
     @MeasureMode int measureMode;
 
@@ -102,7 +107,9 @@ public class TextLayoutBuilder {
       // Hence we create a new paint object,
       // if we ever change one of the paint's properties.
       if (mForceNewPaint) {
-        paint = new TextLayoutPaint(paint);
+        TextPaint newPaint = new TextPaint(paint);
+        newPaint.set(paint);
+        paint = newPaint;
         mForceNewPaint = false;
       }
     }
@@ -114,7 +121,19 @@ public class TextLayoutBuilder {
     @Override
     public int hashCode() {
       int hashCode = 1;
-      hashCode = 31 * hashCode + (paint != null ? paint.hashCode() : 0);
+
+      // Hashing the TextPaint object
+      hashCode = 31 * hashCode + paint.getColor();
+      hashCode = 31 * hashCode + Float.floatToIntBits(paint.getTextSize());
+      hashCode = 31 * hashCode + (paint.getTypeface() != null ? paint.getTypeface().hashCode() : 0);
+      hashCode = 31 * hashCode + Float.floatToIntBits(mShadowDx);
+      hashCode = 31 * hashCode + Float.floatToIntBits(mShadowDy);
+      hashCode = 31 * hashCode + Float.floatToIntBits(mShadowRadius);
+      hashCode = 31 * hashCode + mShadowColor;
+      hashCode = 31 * hashCode + paint.linkColor;
+      hashCode = 31 * hashCode + Float.floatToIntBits(paint.density);
+      hashCode = 31 * hashCode + Arrays.hashCode(paint.drawableState);
+
       hashCode = 31 * hashCode + width;
       hashCode = 31 * hashCode + measureMode;
       hashCode = 31 * hashCode + Float.floatToIntBits(spacingMult);
@@ -422,6 +441,10 @@ public class TextLayoutBuilder {
    */
   public TextLayoutBuilder setShadowLayer(float radius, float dx, float dy, @ColorInt int color) {
     mParams.createNewPaintIfNeeded();
+    mParams.mShadowRadius = radius;
+    mParams.mShadowDx = dx;
+    mParams.mShadowDy = dy;
+    mParams.mShadowColor = color;
     mParams.paint.setShadowLayer(radius, dx, dy, color);
     mSavedLayout = null;
     return this;
@@ -831,8 +854,9 @@ public class TextLayoutBuilder {
   /**
    * Builds and returns a {@link Layout}.
    *
-   * @return A {@link Layout} based on the parameters set
+   * @return A {@link Layout} based on the parameters set or null if no text was specified
    */
+  @Nullable
   public Layout build() {
     // Return the cached layout if no property changed.
     if (mShouldCacheLayout && mSavedLayout != null) {
