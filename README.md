@@ -14,7 +14,7 @@ Build text [Layout](https://developer.android.com/reference/android/text/Layout.
 If using Gradle, add this to your `build.gradle`:
 
 ```groovy
-compile 'com.facebook.fbui.textlayoutbuilder:textlayoutbuilder:1.2.0'
+compile 'com.facebook.fbui.textlayoutbuilder:textlayoutbuilder:1.6.0'
 ```
 
 or, if using Maven:
@@ -23,7 +23,7 @@ or, if using Maven:
 <dependency>
   <groupId>com.facebook.fbui.textlayoutbuilder</groupId>
   <artifactId>textlayoutbuilder</artifactId>
-  <version>1.2.0</version>
+  <version>1.6.0</version>
   <type>aar</type>
 </dependency>
 ```
@@ -89,5 +89,4 @@ Turn this on and pass in a `GlyphWarmer` for the `TextLayoutBuilder`.
 
 ## License
 
-TextLayoutBuilder is BSD-licensed. We also provide an
-additional patent grant.
+TextLayoutBuilder is Apache-2-licensed.

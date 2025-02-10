@@ -1,10 +1,19 @@
-/**
- * Copyright (c) 2016-present, Facebook, Inc. All rights reserved.
+/*
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * <p>This source code is licensed under the BSD-style license found in the LICENSE file in the root
- * directory of this source tree. An additional grant of patent rights can be found in the PATENTS
- * file in the same directory.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+
 package com.facebook.fbui.textlayoutbuilder;
 
 import static android.text.Layout.Alignment;
@@ -14,21 +23,24 @@ import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Typeface;
-import android.support.annotation.ColorInt;
-import android.support.annotation.IntDef;
-import android.support.annotation.Nullable;
-import android.support.annotation.Px;
-import android.support.annotation.VisibleForTesting;
-import android.support.v4.text.TextDirectionHeuristicCompat;
-import android.support.v4.text.TextDirectionHeuristicsCompat;
-import android.support.v4.util.LruCache;
+import android.os.Build;
 import android.text.BoringLayout;
 import android.text.Layout;
 import android.text.Spannable;
+import android.text.SpannableStringBuilder;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.text.style.ClickableSpan;
 import android.util.Log;
+import androidx.annotation.ColorInt;
+import androidx.annotation.IntDef;
+import androidx.annotation.Nullable;
+import androidx.annotation.Px;
+import androidx.annotation.RequiresApi;
+import androidx.annotation.VisibleForTesting;
+import androidx.collection.LruCache;
+import androidx.core.text.TextDirectionHeuristicCompat;
+import androidx.core.text.TextDirectionHeuristicsCompat;
 import java.lang.annotation.Retention;
 import java.util.Arrays;
 
@@ -58,6 +70,10 @@ public class TextLayoutBuilder {
   // Default maxLines.
   public static final int DEFAULT_MAX_LINES = Integer.MAX_VALUE;
 
+  private static final float DEFAULT_SPACING_ADD = 0.0f;
+  private static final float DEFAULT_SPACING_MULT = 1.0f;
+  private static final float DEFAULT_LINE_HEIGHT = Float.MAX_VALUE;
+
   private static final int EMS = 1;
   private static final int PIXELS = 2;
 
@@ -81,13 +97,16 @@ public class TextLayoutBuilder {
     @MeasureMode int measureMode;
 
     CharSequence text;
-    ColorStateList color;
+    @Nullable ColorStateList color;
 
-    float spacingMult = 1.0f;
-    float spacingAdd = 0.0f;
+    float spacingMult = DEFAULT_SPACING_MULT;
+    float spacingAdd = DEFAULT_SPACING_ADD;
+    float lineHeight = DEFAULT_LINE_HEIGHT;
     boolean includePadding = true;
+    boolean useLineSpacingFromFallbacks = Build.VERSION.SDK_INT >= 28;
+    boolean shouldLayoutZeroLengthText = false;
 
-    TextUtils.TruncateAt ellipsize = null;
+    @Nullable TextUtils.TruncateAt ellipsize = null;
     boolean singleLine = false;
     int maxLines = DEFAULT_MAX_LINES;
     Alignment alignment = Alignment.ALIGN_NORMAL;
@@ -95,6 +114,7 @@ public class TextLayoutBuilder {
 
     int breakStrategy = 0;
     int hyphenationFrequency = 0;
+    int justificationMode = 0; // JUSTIFICATION_MODE_NONE
     int[] leftIndents;
     int[] rightIndents;
 
@@ -138,7 +158,9 @@ public class TextLayoutBuilder {
       hashCode = 31 * hashCode + measureMode;
       hashCode = 31 * hashCode + Float.floatToIntBits(spacingMult);
       hashCode = 31 * hashCode + Float.floatToIntBits(spacingAdd);
+      hashCode = 31 * hashCode + Float.floatToIntBits(lineHeight);
       hashCode = 31 * hashCode + (includePadding ? 1 : 0);
+      hashCode = 31 * hashCode + (useLineSpacingFromFallbacks ? 1 : 0);
       hashCode = 31 * hashCode + (ellipsize != null ? ellipsize.hashCode() : 0);
       hashCode = 31 * hashCode + (singleLine ? 1 : 0);
       hashCode = 31 * hashCode + maxLines;
@@ -158,7 +180,7 @@ public class TextLayoutBuilder {
   @VisibleForTesting final Params mParams = new Params();
 
   // Locally cached layout for an instance.
-  private Layout mSavedLayout = null;
+  private @Nullable Layout mSavedLayout = null;
 
   // Text layout glyph warmer.
   private GlyphWarmer mGlyphWarmer;
@@ -212,11 +234,28 @@ public class TextLayoutBuilder {
    * @param text The text for the layout
    * @return This {@link TextLayoutBuilder} instance
    */
-  public TextLayoutBuilder setText(CharSequence text) {
-    if (text == mParams.text
-        || (text != null && mParams.text != null && text.equals(mParams.text))) {
+  public TextLayoutBuilder setText(@Nullable CharSequence text) {
+    if (text == mParams.text) {
       return this;
     }
+
+    if (Build.VERSION.SDK_INT >= 21 && text instanceof SpannableStringBuilder) {
+      // Workaround for https://issuetracker.google.com/issues/117666255
+      // We cannot use getSpans here because it omits null spans, even though they exist
+      // So instead we just execute the bug repro and catch the NPE
+      try {
+        text.hashCode();
+      } catch (NullPointerException e) {
+        throw new IllegalArgumentException(
+            "The given text contains a null span. Due to an Android framework bug, this will cause an exception later down the line.",
+            e);
+      }
+    }
+
+    if (text != null && text.equals(mParams.text)) {
+      return this;
+    }
+
     mParams.text = text;
     mSavedLayout = null;
     return this;
@@ -319,13 +358,14 @@ public class TextLayoutBuilder {
   }
 
   /**
-   * Sets the text extra spacing for the layout.
+   * Sets the text extra spacing for the layout. Extra spacing will be ignored if {@link
+   * TextLayoutBuilder#setLineHeight(float)} was used to set an explicit line height.
    *
    * @param spacingExtra the extra space that is added to the height of each line
    * @return This {@link TextLayoutBuilder} instance
    */
   public TextLayoutBuilder setTextSpacingExtra(float spacingExtra) {
-    if (mParams.spacingAdd != spacingExtra) {
+    if (mParams.lineHeight == DEFAULT_LINE_HEIGHT && mParams.spacingAdd != spacingExtra) {
       mParams.spacingAdd = spacingExtra;
       mSavedLayout = null;
     }
@@ -342,14 +382,74 @@ public class TextLayoutBuilder {
   }
 
   /**
-   * Sets the line spacing multiplier for the layout.
+   * Sets the line spacing multiplier for the layout. Line spacing multiplier will be ignored if
+   * {@link TextLayoutBuilder#setLineHeight(float)} was used to set an explicit line height.
    *
    * @param spacingMultiplier the value by which each line's height is multiplied
    * @return This {@link TextLayoutBuilder} instance
    */
   public TextLayoutBuilder setTextSpacingMultiplier(float spacingMultiplier) {
-    if (mParams.spacingMult != spacingMultiplier) {
+    if (mParams.lineHeight == DEFAULT_LINE_HEIGHT && mParams.spacingMult != spacingMultiplier) {
       mParams.spacingMult = spacingMultiplier;
+      mSavedLayout = null;
+    }
+    return this;
+  }
+
+  /**
+   * Returns the line height for this TextLayoutBuilder.
+   *
+   * @return The line height used by this TextLayoutBuilder
+   */
+  public float getLineHeight() {
+    return mParams.getLineHeight();
+  }
+
+  /**
+   * Sets the line height for this layout.
+   *
+   * <p>This mimics the behavior of
+   * https://developer.android.com/reference/android/widget/TextView.html#setLineHeight(int) and
+   * should not be used with {@link TextLayoutBuilder#setTextSpacingExtra(float)} or {@link
+   * TextLayoutBuilder#setTextSpacingMultiplier(float)}.
+   *
+   * @param lineHeight the line height between two lines of text in px.
+   * @return This {@link TextLayoutBuilder} instance.
+   */
+  public TextLayoutBuilder setLineHeight(float lineHeight) {
+    if (mParams.lineHeight != lineHeight) {
+      mParams.lineHeight = lineHeight;
+      mParams.spacingAdd = lineHeight - mParams.paint.getFontMetrics(null);
+      mParams.spacingMult = 1.0f;
+      mSavedLayout = null;
+    }
+    return this;
+  }
+
+  /**
+   * Gets the text letter-space value, which determines the spacing between characters. The value
+   * returned is in ems. Normally, this value is 0.0.
+   *
+   * @return The text letter-space value in ems.
+   * @see #setLetterSpacing(float)
+   */
+  @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
+  public float getLetterSpacing() {
+    return mParams.paint.getLetterSpacing();
+  }
+
+  /**
+   * Sets text letter-spacing in em units. Typical values for slight expansion will be around 0.05.
+   * Negative values tighten text.
+   *
+   * @param letterSpacing A text letter-space value in ems.
+   * @see #getLetterSpacing()
+   */
+  @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
+  public TextLayoutBuilder setLetterSpacing(float letterSpacing) {
+    if (getLetterSpacing() != letterSpacing) {
+      mParams.createNewPaintIfNeeded();
+      mParams.paint.setLetterSpacing(letterSpacing);
       mSavedLayout = null;
     }
     return this;
@@ -475,7 +575,7 @@ public class TextLayoutBuilder {
    * @param typeface The typeface for this TextLayoutBuilder
    * @return This {@link TextLayoutBuilder} instance
    */
-  public TextLayoutBuilder setTypeface(Typeface typeface) {
+  public TextLayoutBuilder setTypeface(@Nullable Typeface typeface) {
     if (mParams.paint.getTypeface() != typeface) {
       mParams.createNewPaintIfNeeded();
       mParams.paint.setTypeface(typeface);
@@ -516,6 +616,7 @@ public class TextLayoutBuilder {
    *
    * @return The text ellipsize used by this TextLayoutBuilder
    */
+  @Nullable
   public TextUtils.TruncateAt getEllipsize() {
     return mParams.ellipsize;
   }
@@ -526,12 +627,38 @@ public class TextLayoutBuilder {
    * @param ellipsize The ellipsis location in the layout
    * @return This {@link TextLayoutBuilder} instance
    */
-  public TextLayoutBuilder setEllipsize(TextUtils.TruncateAt ellipsize) {
+  public TextLayoutBuilder setEllipsize(@Nullable TextUtils.TruncateAt ellipsize) {
     if (mParams.ellipsize != ellipsize) {
       mParams.ellipsize = ellipsize;
       mSavedLayout = null;
     }
     return this;
+  }
+
+  /**
+   * Set whether to respect the ascent and descent of the fallback fonts that are used in displaying
+   * the text (which is needed to avoid text from consecutive lines running into each other).
+   *
+   * <p>If set, fallback fonts that end up getting used can increase the ascent and descent of the
+   * lines that they are used on.
+   *
+   * <p>This behavior is defaulted to true on API >= 28 and false otherwise.
+   */
+  @RequiresApi(api = 28)
+  public TextLayoutBuilder setUseLineSpacingFromFallbacks(boolean status) {
+    if (mParams.useLineSpacingFromFallbacks != status) {
+      mParams.useLineSpacingFromFallbacks = status;
+      mSavedLayout = null;
+    }
+    return this;
+  }
+
+  /**
+   * Returns whether to use line spacing from fallback fonts or not. See {@link
+   * #setUseLineSpacingFromFallbacks}
+   */
+  public boolean getUseLineSpacingFromFallbacks() {
+    return mParams.useLineSpacingFromFallbacks;
   }
 
   /**
@@ -626,7 +753,9 @@ public class TextLayoutBuilder {
   public TextLayoutBuilder setHyphenationFrequency(int hyphenationFrequency) {
     if (mParams.hyphenationFrequency != hyphenationFrequency) {
       mParams.hyphenationFrequency = hyphenationFrequency;
-      mSavedLayout = null;
+      if (Build.VERSION.SDK_INT >= 23) {
+        mSavedLayout = null;
+      }
     }
     return this;
   }
@@ -851,10 +980,52 @@ public class TextLayoutBuilder {
     return this;
   }
 
+  /** @return The justification mode of this layout. */
+  @RequiresApi(api = Build.VERSION_CODES.O)
+  public int getJustificationMode() {
+    return mParams.justificationMode;
+  }
+
+  /**
+   * Set justification mode. The default value is JUSTIFICATION_MODE_NONE. If the last line is too
+   * short for justification, the last line will be displayed with the alignment
+   *
+   * @param justificationMode The justification mode to use
+   * @return This {@link TextLayoutBuilder} instance
+   */
+  @RequiresApi(api = Build.VERSION_CODES.O)
+  public TextLayoutBuilder setJustificationMode(int justificationMode) {
+    if (mParams.justificationMode != justificationMode) {
+      mParams.justificationMode = justificationMode;
+      if (Build.VERSION.SDK_INT >= 26) {
+        mSavedLayout = null;
+      }
+    }
+    return this;
+  }
+
+  /**
+   * Sets whether zero-length text should be laid out or not.
+   *
+   * @param shouldLayoutZeroLengthText True to lay out zero-length text, false otherwise.
+   * @return This {@link TextLayoutBuilder} instance
+   */
+  public TextLayoutBuilder setShouldLayoutZeroLengthText(boolean shouldLayoutZeroLengthText) {
+    if (mParams.shouldLayoutZeroLengthText != shouldLayoutZeroLengthText) {
+      mParams.shouldLayoutZeroLengthText = shouldLayoutZeroLengthText;
+      if (mParams.text.length() == 0) {
+        mSavedLayout = null;
+      }
+    }
+
+    return this;
+  }
+
   /**
    * Builds and returns a {@link Layout}.
    *
-   * @return A {@link Layout} based on the parameters set or null if no text was specified
+   * @return A {@link Layout} based on the parameters set. Returns null if no text was specified and
+   *     empty text is not explicitly allowed (see {@link #setShouldLayoutZeroLengthText(boolean)}).
    */
   @Nullable
   public Layout build() {
@@ -863,7 +1034,8 @@ public class TextLayoutBuilder {
       return mSavedLayout;
     }
 
-    if (TextUtils.isEmpty(mParams.text)) {
+    if (mParams.text == null
+        || (mParams.text.length() == 0 && !mParams.shouldLayoutZeroLengthText)) {
       return null;
     }
 
@@ -893,7 +1065,17 @@ public class TextLayoutBuilder {
 
     // Try creating a boring layout only if singleLine is requested.
     if (numLines == 1) {
-      metrics = BoringLayout.isBoring(mParams.text, mParams.paint);
+      try {
+        metrics = BoringLayout.isBoring(mParams.text, mParams.paint);
+      } catch (NullPointerException e) {
+        // On older Samsung devices (< M), we sometimes run into a NPE here where a FontMetricsInt
+        // object created within BoringLayout is not properly null-checked within TextLine.
+        // Its ok to ignore this exception since we'll create a regular StaticLayout later.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+          // If we see this on M or above, then its something else.
+          throw e;
+        }
+      }
     }
 
     // getDesiredWidth here is used to ensure we layout text at the same size which it is measured.
@@ -964,8 +1146,10 @@ public class TextLayoutBuilder {
                   mParams.textDirection,
                   mParams.breakStrategy,
                   mParams.hyphenationFrequency,
+                  mParams.justificationMode,
                   mParams.leftIndents,
-                  mParams.rightIndents);
+                  mParams.rightIndents,
+                  mParams.useLineSpacingFromFallbacks);
         } catch (IndexOutOfBoundsException e) {
           // Workaround for https://code.google.com/p/android/issues/detail?id=35412
           if (!(mParams.text instanceof String)) {

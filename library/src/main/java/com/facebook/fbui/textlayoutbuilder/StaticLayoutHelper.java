@@ -1,26 +1,32 @@
-/**
- * Copyright (c) 2016-present, Facebook, Inc. All rights reserved.
+/*
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * <p>This source code is licensed under the BSD-style license found in the LICENSE file in the root
- * directory of this source tree. An additional grant of patent rights can be found in the PATENTS
- * file in the same directory.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+
 package com.facebook.fbui.textlayoutbuilder;
 
 import android.os.Build;
-import android.support.v4.text.TextDirectionHeuristicCompat;
 import android.text.Layout;
 import android.text.StaticLayout;
 import android.text.TextPaint;
 import android.text.TextUtils;
+import androidx.core.text.TextDirectionHeuristicCompat;
 import com.facebook.fbui.textlayoutbuilder.proxy.StaticLayoutProxy;
 import java.lang.reflect.Field;
 
 /** Helper class to get around the {@link StaticLayout} constructor limitation in ICS. */
 /* package */ class StaticLayoutHelper {
-
-  // Hardcoding this as a constant to enable building against older APIs.
-  private static final int ANDROID_O = 26;
 
   // Space and ellipsis to append at the end of a string to ellipsize it
   private static final String SPACE_AND_ELLIPSIS = " \u2026";
@@ -153,6 +159,7 @@ import java.lang.reflect.Field;
    * @param hyphenationFrequency The hyphenation frequency
    * @param leftIndents The array of left indent margins in pixels
    * @param rightIndents The array of left indent margins in pixels
+   * @param useLineSpacingFromFallbacks Whether to use the fallback font's line spacing
    * @return A {@link StaticLayout}
    */
   public static StaticLayout make(
@@ -171,24 +178,34 @@ import java.lang.reflect.Field;
       TextDirectionHeuristicCompat textDirection,
       int breakStrategy,
       int hyphenationFrequency,
+      int justificationMode,
       int[] leftIndents,
-      int[] rightIndents) {
+      int[] rightIndents,
+      boolean useLineSpacingFromFallbacks) {
 
-    // We would like to use the new Builder on 23+, but some obscure texts have a bug on M. Fall
-    // back to old paths for now.
-    if (Build.VERSION.SDK_INT >= ANDROID_O) {
-      return StaticLayout.Builder.obtain(text, start, end, paint, width)
-          .setAlignment(alignment)
-          .setLineSpacing(spacingAdd, spacingMult)
-          .setIncludePad(includePadding)
-          .setEllipsize(ellipsize)
-          .setEllipsizedWidth(ellipsisWidth)
-          .setMaxLines(maxLines)
-          .setTextDirection(StaticLayoutProxy.fromTextDirectionHeuristicCompat(textDirection))
-          .setBreakStrategy(breakStrategy)
-          .setHyphenationFrequency(hyphenationFrequency)
-          .setIndents(leftIndents, rightIndents)
-          .build();
+    if (Build.VERSION.SDK_INT >= 23) {
+      StaticLayout.Builder builder =
+          StaticLayout.Builder.obtain(text, start, end, paint, width)
+              .setAlignment(alignment)
+              .setLineSpacing(spacingAdd, spacingMult)
+              .setIncludePad(includePadding)
+              .setEllipsize(ellipsize)
+              .setEllipsizedWidth(ellipsisWidth)
+              .setMaxLines(maxLines)
+              .setTextDirection(StaticLayoutProxy.fromTextDirectionHeuristicCompat(textDirection))
+              .setBreakStrategy(breakStrategy)
+              .setHyphenationFrequency(hyphenationFrequency)
+              .setIndents(leftIndents, rightIndents);
+
+      if (Build.VERSION.SDK_INT >= 26) {
+        builder.setJustificationMode(justificationMode);
+      }
+
+      if (Build.VERSION.SDK_INT >= 28) {
+        builder.setUseLineSpacingFromFallbacks(useLineSpacingFromFallbacks);
+      }
+
+      return builder.build();
     }
 
     StaticLayout layout =

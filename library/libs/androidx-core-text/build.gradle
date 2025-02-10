@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
-/**
- * Provides a default implementation of {@link com.facebook.fbui.textlayoutbuilder.GlyphWarmer}.
- *
- * @see com.facebook.fbui.textlayoutbuilder.GlyphWarmer
- */
-package com.facebook.fbui.textlayoutbuilder.glyphwarmer;
+apply plugin: 'java'
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
+jar {
+    baseName = 'androidx-core-text'
+    version = '1.0'
+}

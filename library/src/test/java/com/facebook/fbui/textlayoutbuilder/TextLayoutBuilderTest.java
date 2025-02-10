@@ -1,20 +1,29 @@
-/**
- * Copyright (c) 2016-present, Facebook, Inc. All rights reserved.
+/*
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * <p>This source code is licensed under the BSD-style license found in the LICENSE file in the root
- * directory of this source tree. An additional grant of patent rights can be found in the PATENTS
- * file in the same directory.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+
 package com.facebook.fbui.textlayoutbuilder;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.robolectric.annotation.TextLayoutMode.Mode.LEGACY;
 
 import android.content.res.ColorStateList;
 import android.graphics.Paint;
 import android.graphics.Typeface;
-import android.support.v4.text.TextDirectionHeuristicsCompat;
 import android.text.Layout;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -22,18 +31,19 @@ import android.text.TextUtils;
 import android.text.style.ClickableSpan;
 import android.text.style.StyleSpan;
 import android.view.View;
+import androidx.core.text.TextDirectionHeuristicsCompat;
 import com.facebook.fbui.textlayoutbuilder.shadows.ShadowPicture;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
+import org.robolectric.annotation.TextLayoutMode;
 
 /** Tests {@link TextLayoutBuilder} */
 @Config(
-  manifest = Config.NONE,
-  shadows = {ShadowPicture.class}
-)
+    sdk = 21,
+    shadows = {ShadowPicture.class})
 @RunWith(RobolectricTestRunner.class)
 public class TextLayoutBuilderTest {
 
@@ -68,6 +78,20 @@ public class TextLayoutBuilderTest {
   public void testSetTextNull() {
     mLayout = mBuilder.setText(null).build();
     assertEquals(mBuilder.getText(), null);
+    assertEquals(mLayout, null);
+  }
+
+  @Test
+  public void testSetTextEmptyStringWithZeroLengthTextAllowed() {
+    mLayout = mBuilder.setText("").setShouldLayoutZeroLengthText(true).build();
+    assertEquals(mBuilder.getText(), "");
+    assertEquals(mLayout.getText(), "");
+  }
+
+  @Test
+  public void testSetTextEmptyStringWithZeroLengthTextNotAllowed() {
+    mLayout = mBuilder.setText("").setShouldLayoutZeroLengthText(false).build();
+    assertEquals(mBuilder.getText(), "");
     assertEquals(mLayout, null);
   }
 
@@ -111,6 +135,17 @@ public class TextLayoutBuilderTest {
     mLayout = mBuilder.setTextSpacingMultiplier(1.5f).build();
     assertEquals(mBuilder.getTextSpacingMultiplier(), 1.5f, 0.0f);
     assertEquals(mLayout.getSpacingMultiplier(), 1.5f, 0.0f);
+  }
+
+  @Test
+  @TextLayoutMode(LEGACY)
+  public void testSetTextLineHeight() {
+    final float lineHeight = 15f;
+    mLayout = mBuilder.setLineHeight(lineHeight).build();
+    assertEquals(mBuilder.getLineHeight(), 15f, 0.0f);
+    assertEquals(mLayout.getSpacingMultiplier(), 1.0f, 0.0f);
+    assertEquals(
+        mLayout.getSpacingAdd(), lineHeight - mLayout.getPaint().getFontMetrics(null), 0.0f);
   }
 
   @Test
@@ -178,6 +213,12 @@ public class TextLayoutBuilderTest {
   public void testSetHyphenationFrequency() {
     mLayout = mBuilder.setHyphenationFrequency(1).build();
     assertEquals(mBuilder.getHyphenationFrequency(), 1);
+  }
+
+  @Test
+  public void testSetJustificationMode() {
+    mLayout = mBuilder.setJustificationMode(1).build();
+    assertEquals(mBuilder.getJustificationMode(), 1);
   }
 
   @Test
@@ -350,6 +391,14 @@ public class TextLayoutBuilderTest {
     mLayout = mBuilder.setText(spannable).setShouldCacheLayout(true).build();
     assertEquals(mBuilder.sCache.size(), 0);
     assertEquals(mBuilder.sCache.get(mBuilder.mParams.hashCode()), null);
+  }
+
+  @Config(sdk = 21)
+  @Test(expected = IllegalArgumentException.class)
+  public void testNullSpansAreCaught() {
+    SpannableStringBuilder ssb =
+        new SpannableStringBuilder().append("abcd", null, Spanned.SPAN_INCLUSIVE_EXCLUSIVE);
+    mBuilder.setText(ssb).build();
   }
 
   private static class FakeGlyphWarmer implements GlyphWarmer {
